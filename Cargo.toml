@@ -42,3 +42,6 @@ path = "vendor/rust-analyzer/crates/load-cargo"
 
 [dependencies.camino]
 version = "1.0"
+
+[dev-dependencies]
+insta = { version = "1.40", features = ["yaml"] }
