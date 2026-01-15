@@ -21,12 +21,12 @@ package = "ide"
 path = "vendor/rust-analyzer/crates/ide"
 
 [dependencies.ra-ide_db]
-package = "ide_db"
-path = "vendor/rust-analyzer/crates/ide_db"
+package = "ide-db"
+path = "vendor/rust-analyzer/crates/ide-db"
 
 [dependencies.ra-project_model]
-package = "project_model"
-path = "vendor/rust-analyzer/crates/project_model"
+package = "project-model"
+path = "vendor/rust-analyzer/crates/project-model"
 
 [dependencies.ra-syntax]
 package = "syntax"
@@ -35,3 +35,10 @@ path = "vendor/rust-analyzer/crates/syntax"
 [dependencies.ra-vfs]
 package = "vfs"
 path = "vendor/rust-analyzer/crates/vfs"
+
+[dependencies.load_cargo]
+package = "load-cargo"
+path = "vendor/rust-analyzer/crates/load-cargo"
+
+[dependencies.camino]
+version = "1.0"

@@ -1,4 +1,6 @@
 mod project;
+#[cfg(test)]
+mod project_test;
 mod protocol;
 mod query_parser;
 mod twoslash;

@@ -98,8 +98,10 @@ pub enum DiagnosticCategory {
 impl From<Severity> for DiagnosticCategory {
     fn from(sev: Severity) -> Self {
         match sev {
-            Severity::WeakWarning => DiagnosticCategory::Info,
             Severity::Error => DiagnosticCategory::Error,
+            Severity::Warning => DiagnosticCategory::Warning,
+            Severity::WeakWarning => DiagnosticCategory::Info,
+            Severity::Allow => DiagnosticCategory::Debug,
         }
     }
 }

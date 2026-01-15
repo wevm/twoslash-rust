@@ -2,20 +2,21 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::Arc;
+
 
 use anyhow::Result;
 
-use ra::cli::load_cargo::{load_workspace, LoadCargoConfig};
+use load_cargo::{load_workspace, LoadCargoConfig, ProcMacroServerChoice};
 use ra_ide::{
-    Analysis, AnalysisHost, Change, CompletionConfig, Diagnostic, DiagnosticsConfig, FileId,
-    FilePosition, HoverResult, LineCol, LineIndex, StaticIndex, TextRange, TextSize, TokenId,
-    TokenStaticData,
+    Analysis, AnalysisHost, AssistResolveStrategy, CompletionConfig, CompletionFieldsToResolve,
+    Diagnostic, DiagnosticsConfig, FileId, FilePosition, HoverResult, LineCol, LineIndex,
+    StaticIndex, TextRange, TextSize, TokenId, TokenStaticData, VendoredLibrariesConfig,
 };
 use ra_ide_db::imports::insert_use::{ImportGranularity, InsertUseConfig, PrefixKind};
-use ra_ide_db::SnippetCap;
+use ra_ide_db::{ChangeWithProcMacros, SnippetCap};
 use ra_project_model::{CargoConfig, ProjectManifest, ProjectWorkspace};
 use ra_vfs::{AbsPathBuf, VfsPath};
+use camino::Utf8PathBuf;
 use tempfile::TempDir;
 
 use crate::query_parser::find_queries;
@@ -127,7 +128,7 @@ fn pre_index(
     LineIndex,
     Cut,
 ) {
-    let si = StaticIndex::compute(&analysis);
+    let si = StaticIndex::compute(&analysis, VendoredLibrariesConfig::Excluded);
 
     let mut token_to_ranges = HashMap::<TokenId, Vec<TextRange>>::default();
     for (range, id) in si
@@ -174,20 +175,22 @@ impl Project {
         let no_progress = &|_| ();
         let load_cargo_config = LoadCargoConfig {
             load_out_dirs_from_check: true,
-            with_proc_macro: false,
+            with_proc_macro_server: ProcMacroServerChoice::None,
             prefill_caches: false,
         };
-        let path = AbsPathBuf::assert(bootstrap.root);
+        let path = AbsPathBuf::assert_utf8(Utf8PathBuf::try_from(bootstrap.root).unwrap().into());
 
         let manifest = ProjectManifest::discover_single(&path)?;
         let workspace = ProjectWorkspace::load(manifest, &cargo_config, no_progress)?;
-        let (host, vfs, _proc_macro) = load_workspace(workspace, &load_cargo_config)?;
+        let (db, vfs, _proc_macro) =
+            load_workspace(workspace, &cargo_config.extra_env, &load_cargo_config)?;
+        let host = AnalysisHost::with_database(db);
 
         let analysis = host.analysis();
 
-        let _si = StaticIndex::compute(&analysis);
+        let _si = StaticIndex::compute(&analysis, VendoredLibrariesConfig::Excluded);
 
-        let fid = vfs
+        let (fid, _) = vfs
             .file_id(&VfsPath::new_real_path(bootstrap.lib_rs.display().to_string()))
             .unwrap();
         let analysis = host.analysis();
@@ -217,8 +220,8 @@ impl Project {
 
         let (host, analysis, fid) = match self.host {
             Some(mut host) => {
-                let mut changes = Change::new();
-                changes.change_file(self.fid, Some(Arc::new(new_code.clone())));
+                let mut changes = ChangeWithProcMacros::default();
+                changes.change_file(self.fid, Some(new_code.clone()));
                 host.apply_change(changes);
                 let analysis = host.analysis();
                 (Some(host), analysis, self.fid)
@@ -267,9 +270,9 @@ impl Project {
     fn diagnostics(&self) -> Result<Vec<Error>> {
         let diags = self
             .analysis
-            .diagnostics(
-                &DiagnosticsConfig::default(),
-                ra_ide::AssistResolveStrategy::None,
+            .full_diagnostics(
+                &DiagnosticsConfig::test_sample(),
+                AssistResolveStrategy::None,
                 self.fid,
             )?
             .into_iter()
@@ -281,7 +284,7 @@ impl Project {
                     severity,
                     ..
                 } = diag;
-                self.to_position(range).map(
+                self.to_position(range.range).map(
                     |Position {
                          start,
                          length,
@@ -356,17 +359,25 @@ impl Project {
     }
 
     fn find_hover_data_at_position(&self, pos: TextSize) -> Option<(TextRange, &HoverResult)> {
-        let hover_from_static_index = self.token_data.iter().find_map(|(id, data)| {
-            let range = self
-                .token_to_ranges
-                .get(id)
-                .and_then(|ranges| ranges.iter().find(|range| range.contains(pos)));
-            match (range, data.hover.as_ref()) {
-                (Some(range), Some(data)) => Some((*range, data)),
-                _ => None,
-            }
-        });
-        hover_from_static_index
+        // Find all tokens containing this position, then pick the smallest (most specific) one
+        let mut candidates: Vec<(TextRange, &HoverResult)> = self
+            .token_data
+            .iter()
+            .filter_map(|(id, data)| {
+                let range = self
+                    .token_to_ranges
+                    .get(id)
+                    .and_then(|ranges| ranges.iter().find(|range| range.contains(pos)));
+                match (range, data.hover.as_ref()) {
+                    (Some(range), Some(hover)) => Some((*range, hover)),
+                    _ => None,
+                }
+            })
+            .collect();
+        
+        // Sort by range length (smallest first) to get the most specific token
+        candidates.sort_by_key(|(range, _)| range.len());
+        candidates.into_iter().next()
     }
 
     fn query(&self, pos: TextSize) -> Result<Query> {
@@ -405,9 +416,14 @@ impl Project {
             enable_postfix_completions: true,
             enable_imports_on_the_fly: true,
             enable_self_on_the_fly: true,
+            enable_auto_iter: true,
+            enable_auto_await: true,
             enable_private_editable: true,
-            add_call_parenthesis: true,
-            add_call_argument_snippets: true,
+            enable_term_search: false,
+            term_search_fuel: 200,
+            full_function_signatures: false,
+            callable: None,
+            add_semicolon_to_unit: false,
             snippet_cap: SnippetCap::new(true),
             insert_use: InsertUseConfig {
                 granularity: ImportGranularity::Crate,
@@ -416,13 +432,20 @@ impl Project {
                 group: true,
                 skip_glob_imports: true,
             },
+            prefer_no_std: false,
+            prefer_prelude: true,
+            prefer_absolute: false,
             snippets: Vec::new(),
+            limit: None,
+            fields_to_resolve: CompletionFieldsToResolve::empty(),
+            exclude_flyimport: Vec::new(),
+            exclude_traits: &[],
         };
-        let pos = FilePosition {
+        let file_pos = FilePosition {
             file_id: self.fid,
             offset: pos,
         };
-        let completions = self.analysis.completions(&completions_config, pos)?;
+        let completions = self.analysis.completions(&completions_config, file_pos, None)?;
         let zero_err = Err(anyhow::Error::msg(""));
         let completions = match completions {
             None => return zero_err,
@@ -435,7 +458,7 @@ impl Project {
             length,
             line,
             character,
-        } = match self.to_position(completions[0].source_range()) {
+        } = match self.to_position(completions[0].source_range) {
             None => return zero_err,
             Some(pos) => pos,
         };
@@ -446,7 +469,7 @@ impl Project {
         let completions = completions
             .into_iter()
             .map(|completion| CompletionEntry {
-                name: completion.label().to_string(),
+                name: completion.label.primary.to_string(),
             })
             .collect();
 
