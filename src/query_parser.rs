@@ -18,29 +18,50 @@ lazy_static! {
             |n| { n - 1 }
         ),
     ];
+    static ref NO_ERRORS_RE: Regex = Regex::new(r#"^\s*//\s*@noErrors\s*$"#).unwrap();
 }
 
-pub fn find_queries(src: &str) -> (String, Vec<(QueryKind, TextSize)>) {
+pub struct ParseResult {
+    pub code: String,
+    pub queries: Vec<(QueryKind, TextSize)>,
+    pub no_errors: bool,
+}
+
+pub fn find_queries(src: &str) -> ParseResult {
     let mut queries = vec![];
     let mut removed_lines = 0;
     let mut lines = vec![];
+    let mut no_errors = false;
+
     for (i, line) in src.lines().enumerate() {
         let mut skip_line = false;
-        for (kind, parser, transform_col) in PARSERS.iter() {
-            if let Some(capture) = parser.captures(line) {
-                let col = capture.name("caret").unwrap().start() as u32;
-                let col = transform_col(col);
-                queries.push((
-                    *kind,
-                    LineCol {
-                        line: (i - removed_lines - 1) as u32,
-                        col,
-                    },
-                ));
-                skip_line = true;
-                removed_lines += 1;
+
+        // Check for @noErrors directive
+        if NO_ERRORS_RE.is_match(line) {
+            no_errors = true;
+            skip_line = true;
+            removed_lines += 1;
+        }
+
+        // Check for query markers
+        if !skip_line {
+            for (kind, parser, transform_col) in PARSERS.iter() {
+                if let Some(capture) = parser.captures(line) {
+                    let col = capture.name("caret").unwrap().start() as u32;
+                    let col = transform_col(col);
+                    queries.push((
+                        *kind,
+                        LineCol {
+                            line: (i - removed_lines - 1) as u32,
+                            col,
+                        },
+                    ));
+                    skip_line = true;
+                    removed_lines += 1;
+                }
             }
         }
+
         if !skip_line {
             lines.push(line);
         }
@@ -52,7 +73,12 @@ pub fn find_queries(src: &str) -> (String, Vec<(QueryKind, TextSize)>) {
         .into_iter()
         .map(|(kind, line_col)| (kind, line_index.offset(line_col).unwrap()))
         .collect();
-    (new_text, queries)
+
+    ParseResult {
+        code: new_text,
+        queries,
+        no_errors,
+    }
 }
 
 #[cfg(test)]
@@ -81,13 +107,13 @@ foo {
 }
 "#
         .trim();
-        let (src, queries) = find_queries(src);
+        let result = find_queries(src);
 
-        let pretty_queries: Vec<_> = queries
+        let pretty_queries: Vec<_> = result.queries
             .into_iter()
             .map(|(q, pos)| {
                 let pos = u32::from(pos) as usize;
-                let word = &src[pos - 1..pos + 2];
+                let word = &result.code[pos - 1..pos + 2];
                 (q, word)
             })
             .collect();

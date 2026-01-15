@@ -26,10 +26,14 @@ pub fn example() {
 
         assert_eq!(result.queries.len(), 1);
         let query = &result.queries[0];
-        
+
         assert!(query.text.is_some());
         let text = query.text.as_ref().unwrap();
-        assert!(text.contains("i32"), "Expected hover to contain 'i32', got: {}", text);
+        assert!(
+            text.contains("i32"),
+            "Expected hover to contain 'i32', got: {}",
+            text
+        );
     }
 
     #[test]
@@ -61,7 +65,11 @@ pub fn example() {
         let query = &result.queries[0];
         assert!(query.text.is_some());
         let text = query.text.as_ref().unwrap();
-        assert!(text.contains("fn add"), "Expected hover to contain 'fn add', got: {}", text);
+        assert!(
+            text.contains("fn add"),
+            "Expected hover to contain 'fn add', got: {}",
+            text
+        );
     }
 
     #[test]
@@ -94,7 +102,11 @@ pub fn example() {
         let query = &result.queries[0];
         assert!(query.text.is_some());
         let text = query.text.as_ref().unwrap();
-        assert!(text.contains("Point"), "Expected hover to contain 'Point', got: {}", text);
+        assert!(
+            text.contains("Point"),
+            "Expected hover to contain 'Point', got: {}",
+            text
+        );
     }
 
     #[test]
@@ -121,14 +133,20 @@ pub fn example() {
         let result = project.twoslasher().unwrap();
 
         assert_eq!(result.queries.len(), 2);
-        
+
         let first = &result.queries[0];
-        assert!(first.text.as_ref().unwrap().contains("i32"), 
-            "Expected i32, got: {}", first.text.as_ref().unwrap());
-        
+        assert!(
+            first.text.as_ref().unwrap().contains("i32"),
+            "Expected i32, got: {}",
+            first.text.as_ref().unwrap()
+        );
+
         let second = &result.queries[1];
-        assert!(second.text.as_ref().unwrap().contains("u64"),
-            "Expected u64, got: {}", second.text.as_ref().unwrap());
+        assert!(
+            second.text.as_ref().unwrap().contains("u64"),
+            "Expected u64, got: {}",
+            second.text.as_ref().unwrap()
+        );
     }
 
     #[test]
@@ -154,7 +172,7 @@ pub fn example() {
 
         assert_eq!(result.queries.len(), 1);
         let query = &result.queries[0];
-        
+
         assert_eq!(query.line, 2); // line 2 (0-indexed line 1 + 1)
         assert!(query.length > 0, "Expected length > 0");
     }
@@ -180,7 +198,10 @@ pub fn example() {
         let result = project.twoslasher().unwrap();
 
         // Should have hover info for identifiers
-        assert!(!result.static_quick_infos.is_empty(), "Expected some static quick infos");
+        assert!(
+            !result.static_quick_infos.is_empty(),
+            "Expected some static quick infos"
+        );
     }
 
     #[test]
@@ -214,16 +235,24 @@ pub fn example() {
 
         assert_eq!(result.queries.len(), 1);
         let query = &result.queries[0];
-        
+
         // Completions query should have completions, not text
         assert!(query.completions.is_some(), "Expected completions");
         let completions = query.completions.as_ref().unwrap();
         assert!(!completions.is_empty(), "Expected at least one completion");
-        
+
         // Should include field completions - bar and baz should be among the first suggestions
         let names: Vec<&str> = completions.iter().map(|c| c.name.as_str()).collect();
-        assert!(names.contains(&"bar"), "Expected 'bar' in completions, got: {:?}", names);
-        assert!(names.contains(&"baz"), "Expected 'baz' in completions, got: {:?}", names);
+        assert!(
+            names.contains(&"bar"),
+            "Expected 'bar' in completions, got: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"baz"),
+            "Expected 'baz' in completions, got: {:?}",
+            names
+        );
     }
 
     #[test]
@@ -263,15 +292,61 @@ pub fn example() {
 
         assert_eq!(result.queries.len(), 1);
         let query = &result.queries[0];
-        
+
         assert!(query.completions.is_some(), "Expected completions");
         let completions = query.completions.as_ref().unwrap();
-        
+
         // Should include method completions
         let names: Vec<&str> = completions.iter().map(|c| c.name.as_str()).collect();
-        assert!(names.contains(&"get"), "Expected 'get' in completions, got: {:?}", names);
-        assert!(names.contains(&"increment"), "Expected 'increment' in completions, got: {:?}", names);
-        assert!(names.contains(&"value"), "Expected 'value' (field) in completions, got: {:?}", names);
+        assert!(
+            names.contains(&"get"),
+            "Expected 'get' in completions, got: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"increment"),
+            "Expected 'increment' in completions, got: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"value"),
+            "Expected 'value' (field) in completions, got: {:?}",
+            names
+        );
+    }
+
+    #[test]
+    fn test_no_errors_suppresses_diagnostics() {
+        let tmpdir = TempDir::new().unwrap();
+        let source = r#"
+// @noErrors
+fn main() {
+    let x = 42;
+    let message = "Hello, Rust!";
+}
+"#
+        .trim();
+
+        let settings = ProjectSettings {
+            project_name: "test-project",
+            tmpdir: &tmpdir,
+            cargo_toml: None,
+            target_dir: None,
+        };
+
+        let project = Project::scaffold_with_code(settings, source).unwrap();
+        let result = project.twoslasher().unwrap();
+
+        // With @noErrors, no diagnostics should be reported (unused variable warnings suppressed)
+        assert!(
+            result.errors.is_empty(),
+            "Expected no errors with @noErrors, got: {:?}",
+            result
+                .errors
+                .iter()
+                .map(|e| &e.rendered_message)
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -301,14 +376,21 @@ pub fn example() {
         let result = project.twoslasher().unwrap();
 
         // The output code should NOT contain the struct definition (it's cut)
-        assert!(!result.code.contains("pub struct Config"), 
-            "Expected struct definition to be cut from output, got: {}", result.code);
-        
+        assert!(
+            !result.code.contains("pub struct Config"),
+            "Expected struct definition to be cut from output, got: {}",
+            result.code
+        );
+
         // But we should still get type information for Config
         assert_eq!(result.queries.len(), 1);
         let query = &result.queries[0];
         assert!(query.text.is_some(), "Expected hover text");
         let text = query.text.as_ref().unwrap();
-        assert!(text.contains("Config"), "Expected hover to contain 'Config', got: {}", text);
+        assert!(
+            text.contains("Config"),
+            "Expected hover to contain 'Config', got: {}",
+            text
+        );
     }
 }

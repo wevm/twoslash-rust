@@ -18,8 +18,13 @@ jobs:
           submodules: recursive
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+
+      - name: Format
+        run: cargo fmt --all -- --check
 
       - name: Build
         run: cargo build --verbose
