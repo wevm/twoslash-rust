@@ -11,13 +11,29 @@ use std::net::TcpListener;
 use tempfile::TempDir;
 
 fn main() -> Result<()> {
-    let make_cargo_project = std::env::var("TWOSLASH_USE_CARGO").unwrap_or_default() == "1";
+    let args: Vec<String> = std::env::args().collect();
+
+    // Parse --cargo-toml argument
+    let cargo_toml_content = args
+        .iter()
+        .position(|arg| arg == "--cargo-toml")
+        .and_then(|i| args.get(i + 1))
+        .map(|path| std::fs::read_to_string(path))
+        .transpose()?;
+
+    // Parse --target-dir argument
+    let target_dir = args
+        .iter()
+        .position(|arg| arg == "--target-dir")
+        .and_then(|i| args.get(i + 1).cloned());
+
     let tmpdir = TempDir::new()?;
     let default_project_name = "twoslash-rust-project";
     let mut project_settings = ProjectSettings {
-        make_cargo_project,
         project_name: default_project_name,
         tmpdir: &tmpdir,
+        cargo_toml: cargo_toml_content.as_deref(),
+        target_dir: target_dir.as_deref(),
     };
 
     if let Ok(server_uuid) = std::env::var("TWOSLASH_SERVER_UUID") {

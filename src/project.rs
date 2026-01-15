@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -18,13 +19,18 @@ use ra_vfs::{AbsPathBuf, VfsPath};
 use tempfile::TempDir;
 
 use crate::query_parser::find_queries;
-use crate::twoslash::{CompletionEntry, Error, Query, QueryKind, StaticQuickInfo, TwoSlash};
+use crate::twoslash::{
+    CompletionEntry, Error, Query, QueryKind, StaticQuickInfo, TwoSlash,
+};
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct ProjectSettings<'a> {
-    pub make_cargo_project: bool,
     pub project_name: &'a str,
     pub tmpdir: &'a TempDir,
+    /// Optional Cargo.toml content to use as template
+    pub cargo_toml: Option<&'a str>,
+    /// Optional shared target directory for caching compiled deps
+    pub target_dir: Option<&'a str>,
 }
 
 struct Position {
@@ -48,13 +54,33 @@ pub struct Project {
     fid: FileId,
 }
 
+/// Result of bootstrapping a cargo project
+struct BootstrapResult {
+    root: PathBuf,
+    lib_rs: PathBuf,
+}
+
+/// Generate default Cargo.toml content
+fn default_cargo_toml(project_name: &str) -> String {
+    format!(
+        r#"[package]
+edition = "2021"
+name = "{}"
+version = "0.0.0"
+"#,
+        project_name,
+    )
+}
+
 /// Bootstraps a cargo project in a directory, and returns the paths of the
 /// project root and lib.rs.
 fn bootstrap_project_in(
     dir: &TempDir,
     project_name: &str,
     source: &str,
-) -> Result<(PathBuf, PathBuf)> {
+    cargo_toml_template: Option<&str>,
+    target_dir: Option<&str>,
+) -> Result<BootstrapResult> {
     let root = dir.path();
     let lib_rs = root.join("src/lib.rs");
 
@@ -62,26 +88,33 @@ fn bootstrap_project_in(
     // |- Cargo.toml
     // |- src
     //    |- lib.rs
-    let cargo_toml = root.join("Cargo.toml");
-    fs::write(
-        cargo_toml,
-        format!(
-            r#"
-[package]
-edition = "2021"
-name = "{}"
-version = "0.0.0"
-"#,
-            project_name,
-        )
-        .trim(),
-    )?;
+    let cargo_toml_path = root.join("Cargo.toml");
 
+    let cargo_content = match cargo_toml_template {
+        Some(template) => template.to_string(),
+        None => default_cargo_toml(project_name),
+    };
+
+    fs::write(cargo_toml_path, cargo_content.trim())?;
     fs::create_dir(root.join("src"))?;
-
     fs::write(lib_rs.clone(), source)?;
 
-    Ok((root.to_path_buf(), lib_rs))
+    // Always run cargo check to fetch deps and set up sysroot for rust-analyzer
+    let mut cmd = Command::new("cargo");
+    cmd.args(["check"]).current_dir(root);
+
+    // Use shared target directory if provided (caches compiled deps across runs)
+    if let Some(target) = target_dir {
+        fs::create_dir_all(target)?;
+        cmd.arg("--target-dir").arg(target);
+    }
+
+    cmd.output()?;
+
+    Ok(BootstrapResult {
+        root: root.to_path_buf(),
+        lib_rs,
+    })
 }
 
 fn pre_index(
@@ -124,49 +157,47 @@ impl Project {
         )
     }
 
-    /// Let `scaffold`, but injects user code immediately.
+    /// Like `scaffold`, but injects user code immediately.
     pub fn scaffold_with_code<'a>(settings: ProjectSettings, source: &'a str) -> Result<Project> {
         let (source, queries) = find_queries(source);
 
-        let (host, analysis, fid) = if !settings.make_cargo_project {
-            let (analysis, fid) = Analysis::from_single_file(source.to_string());
-            (None, analysis, fid)
-        } else {
-            let (root, lib_rs) =
-                bootstrap_project_in(settings.tmpdir, settings.project_name, &source)?;
+        // Always use cargo mode - it's needed for std resolution and external deps
+        let bootstrap = bootstrap_project_in(
+            settings.tmpdir,
+            settings.project_name,
+            &source,
+            settings.cargo_toml,
+            settings.target_dir,
+        )?;
 
-            let cargo_config = CargoConfig::default();
-            let no_progress = &|_| ();
-            let load_cargo_config = LoadCargoConfig {
-                load_out_dirs_from_check: true,
-                with_proc_macro: false,
-                prefill_caches: false,
-            };
-            let path = AbsPathBuf::assert(root);
-            let manifest = ProjectManifest::discover_single(&path)?;
-
-            let workspace = ProjectWorkspace::load(manifest, &cargo_config, no_progress)?;
-
-            let (host, vfs, _proc_macro) = load_workspace(workspace, &load_cargo_config)?;
-
-            let analysis = host.analysis();
-
-            let _si = StaticIndex::compute(&analysis);
-
-            let fid = vfs
-                .file_id(&VfsPath::new_real_path(lib_rs.display().to_string()))
-                .unwrap();
-            let analysis = host.analysis();
-
-            (Some(host), analysis, fid)
+        let cargo_config = CargoConfig::default();
+        let no_progress = &|_| ();
+        let load_cargo_config = LoadCargoConfig {
+            load_out_dirs_from_check: true,
+            with_proc_macro: false,
+            prefill_caches: false,
         };
+        let path = AbsPathBuf::assert(bootstrap.root);
+
+        let manifest = ProjectManifest::discover_single(&path)?;
+        let workspace = ProjectWorkspace::load(manifest, &cargo_config, no_progress)?;
+        let (host, vfs, _proc_macro) = load_workspace(workspace, &load_cargo_config)?;
+
+        let analysis = host.analysis();
+
+        let _si = StaticIndex::compute(&analysis);
+
+        let fid = vfs
+            .file_id(&VfsPath::new_real_path(bootstrap.lib_rs.display().to_string()))
+            .unwrap();
+        let analysis = host.analysis();
 
         let (token_to_ranges, token_data, line_index, cut) = pre_index(&analysis, fid, &source);
 
         Ok(Project {
             cut,
 
-            host,
+            host: Some(host),
             analysis,
             queries,
 
