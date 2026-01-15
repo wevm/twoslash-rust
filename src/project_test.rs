@@ -74,7 +74,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 30,
               "length": 3,
               "line": 1,
@@ -182,7 +182,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 10,
               "length": 3,
               "line": 0,
@@ -190,7 +190,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 18,
               "length": 3,
               "line": 0,
@@ -198,7 +198,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 26,
               "length": 3,
               "line": 0,
@@ -339,7 +339,7 @@ pub fn example() {
             },
             {
               "targetString": "f64",
-              "text": "f64",
+              "text": "f64\n\n---\n\nA 64-bit floating-point type (specifically, the \"binary64\" type defined in IEEE 754-2008).\n\nThis type is very similar to [`prim@f32`](`prim@f32`), but has increased precision by using twice as many\nbits. Please see [the documentation for `f32`](prim@f32) or [Wikipedia on double-precision\nvalues](https://en.wikipedia.org/wiki/Double-precision_floating-point_format) for more information.\n\n*[See also the `std::f64::consts` module](crate::f64::consts).*",
               "start": 26,
               "length": 3,
               "line": 1,
@@ -347,7 +347,7 @@ pub fn example() {
             },
             {
               "targetString": "f64",
-              "text": "f64",
+              "text": "f64\n\n---\n\nA 64-bit floating-point type (specifically, the \"binary64\" type defined in IEEE 754-2008).\n\nThis type is very similar to [`prim@f32`](`prim@f32`), but has increased precision by using twice as many\nbits. Please see [the documentation for `f32`](prim@f32) or [Wikipedia on double-precision\nvalues](https://en.wikipedia.org/wiki/Double-precision_floating-point_format) for more information.\n\n*[See also the `std::f64::consts` module](crate::f64::consts).*",
               "start": 38,
               "length": 3,
               "line": 2,
@@ -475,7 +475,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 30,
               "length": 3,
               "line": 1,
@@ -491,7 +491,7 @@ pub fn example() {
             },
             {
               "targetString": "u64",
-              "text": "u64",
+              "text": "u64\n\n---\n\nThe 64-bit unsigned integer type.",
               "start": 50,
               "length": 3,
               "line": 2,
@@ -666,7 +666,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 30,
               "length": 3,
               "line": 1,
@@ -783,7 +783,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 30,
               "length": 3,
               "line": 1,
@@ -791,7 +791,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 48,
               "length": 3,
               "line": 2,
@@ -851,6 +851,12 @@ pub fn example() {
                 },
                 {
                   "name": "baz"
+                },
+                {
+                  "name": "try_into"
+                },
+                {
+                  "name": "into"
                 },
                 {
                   "name": "ref"
@@ -1032,7 +1038,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 32,
               "length": 3,
               "line": 1,
@@ -1040,7 +1046,7 @@ pub fn example() {
             },
             {
               "targetString": "i32",
-              "text": "i32",
+              "text": "i32\n\n---\n\nThe 32-bit signed integer type.",
               "start": 145,
               "length": 3,
               "line": 8,
@@ -1139,6 +1145,12 @@ pub fn example() {
                   "name": "value"
                 },
                 {
+                  "name": "try_into"
+                },
+                {
+                  "name": "into"
+                },
+                {
                   "name": "get"
                 },
                 {
@@ -1208,16 +1220,6 @@ pub fn example() {
               "length": 3,
               "line": 15,
               "character": 6
-            },
-            {
-              "renderedMessage": "cannot move `i32` out of reference",
-              "id": "E0507",
-              "category": "Error",
-              "code": 0,
-              "start": 159,
-              "length": 10,
-              "line": 9,
-              "character": 8
             }
           ],
           "playgroundURL": "https://play.rust-lang.org"
@@ -1334,7 +1336,7 @@ pub fn example() {
           "staticQuickInfos": [
             {
               "targetString": "Config",
-              "text": "test_project\n\npub struct Config {\n    pub name: {unknown},\n    pub value: i32,\n}",
+              "text": "test_project\n\npub struct Config {\n    pub name: String,\n    pub value: i32,\n}",
               "start": 33,
               "length": 6,
               "line": 1,
@@ -1342,11 +1344,19 @@ pub fn example() {
             },
             {
               "targetString": "name",
-              "text": "test_project::Config\n\npub name: {unknown}",
+              "text": "test_project::Config\n\npub name: String",
               "start": 42,
               "length": 4,
               "line": 1,
               "character": 23
+            },
+            {
+              "targetString": "String",
+              "text": "alloc::string\n\npub struct String {\n    vec: Vec<u8>,\n}\n\n---\n\nA UTF-8–encoded, growable string.\n\n`String` is the most common string type. It has ownership over the contents\nof the string, stored in a heap-allocated buffer (see [Representation](https://doc.rust-lang.org/stable/alloc/string/struct.String.html#representation)).\nIt is closely related to its borrowed counterpart, the primitive [`str`].\n\n# Examples\n\nYou can create a `String` from [a literal string](https://doc.rust-lang.org/stable/alloc/str/index.html) with [`String::from`]:\n\nlet hello = String::from(\"Hello, world!\");\n\nYou can append a [`char`](https://doc.rust-lang.org/nightly/core/primitive.char.html) to a `String` with the [`push`] method, and\nappend a [`&str`] with the [`push_str`] method:\n\nlet mut hello = String::from(\"Hello, \");\n\nhello.push('w');\nhello.push_str(\"orld!\");\n\nIf you have a vector of UTF-8 bytes, you can create a `String` from it with\nthe [`from_utf8`] method:\n\n// some bytes, in a vector\nlet sparkle_heart = vec![240, 159, 146, 150];\n\n// We know these bytes are valid, so we'll use `unwrap()`.\nlet sparkle_heart = String::from_utf8(sparkle_heart).unwrap();\n\nassert_eq!(\"💖\", sparkle_heart);\n\n# UTF-8\n\n`String`s are always valid UTF-8. If you need a non-UTF-8 string, consider\n[`OsString`](https://doc.rust-lang.org/stable/std/ffi/struct.OsString.html). It is similar, but without the UTF-8 constraint. Because UTF-8\nis a variable width encoding, `String`s are typically smaller than an array of\nthe same `char`s:\n\n// `s` is ASCII which represents each `char` as one byte\nlet s = \"hello\";\nassert_eq!(s.len(), 5);\n\n// A `char` array with the same contents would be longer because\n// every `char` is four bytes\nlet s = ['h', 'e', 'l', 'l', 'o'];\nlet size: usize = s.into_iter().map(|c| size_of_val(&c)).sum();\nassert_eq!(size, 20);\n\n// However, for non-ASCII strings, the difference will be smaller\n// and sometimes they are the same\nlet s = \"💖💖💖💖💖\";\nassert_eq!(s.len(), 20);\n\nlet s = ['💖', '💖', '💖', '💖', '💖'];\nlet size: usize = s.into_iter().map(|c| size_of_val(&c)).sum();\nassert_eq!(size, 20);\n\nThis raises interesting questions as to how `s[i]` should work.\nWhat should `i` be here? Several options include byte indices and\n`char` indices but, because of UTF-8 encoding, only byte indices\nwould provide constant time indexing. Getting the `i`th `char`, for\nexample, is available using [`chars`]:\n\nlet s = \"hello\";\nlet third_character = s.chars().nth(2);\nassert_eq!(third_character, Some('l'));\n\nlet s = \"💖💖💖💖💖\";\nlet third_character = s.chars().nth(2);\nassert_eq!(third_character, Some('💖'));\n\nNext, what should `s[i]` return? Because indexing returns a reference\nto underlying data it could be `&u8`, `&[u8]`, or something similar.\nSince we're only providing one index, `&u8` makes the most sense but that\nmight not be what the user expects and can be explicitly achieved with\n[`as_bytes()`]:\n\n// The first byte is 104 - the byte value of `'h'`\nlet s = \"hello\";\nassert_eq!(s.as_bytes()[0], 104);\n// or\nassert_eq!(s.as_bytes()[0], b'h');\n\n// The first byte is 240 which isn't obviously useful\nlet s = \"💖💖💖💖💖\";\nassert_eq!(s.as_bytes()[0], 240);\n\nDue to these ambiguities/restrictions, indexing with a `usize` is simply\nforbidden:\n\n```compile_fail,E0277\nlet s = \"hello\";\n\n// The following will not compile!\nprintln!(\"The first letter of s is {}\", s[0]);\n\nIt is more clear, however, how `&s[i..j]` should work (that is,\nindexing with a range). It should accept byte indices (to be constant-time)\nand return a `&str` which is UTF-8 encoded. This is also called \"string slicing\".\nNote this will panic if the byte indices provided are not character\nboundaries - see [`is_char_boundary`] for more details. See the implementations\nfor [`SliceIndex<str>`] for more details on string slicing. For a non-panicking\nversion of string slicing, see [`get`].\n\nThe [`bytes`] and [`chars`] methods return iterators over the bytes and\ncodepoints of the string, respectively. To iterate over codepoints along\nwith byte indices, use [`char_indices`].\n\n# Deref\n\n`String` implements <code>\n[Deref]\\<Target = [str]\\></code>, and so inherits all of [`str`]'s\nmethods. In addition, this means that you can pass a `String` to a\nfunction which takes a [`&str`] by using an ampersand (`&`):\n\nfn takes_str(s: &str) { }\n\nlet s = String::from(\"Hello\");\n\ntakes_str(&s);\n\nThis will create a [`&str`] from the `String` and pass it in. This\nconversion is very inexpensive, and so generally, functions will accept\n[`&str`]s as arguments unless they need a `String` for some specific\nreason.\n\nIn certain cases Rust doesn't have enough information to make this\nconversion, known as [`Deref`] coercion. In the following example a string\nslice [`&'a str`](https://doc.rust-lang.org/stable/alloc/str/index.html) implements the trait `TraitExample`, and the function\n`example_func` takes anything that implements the trait. In this case Rust\nwould need to make two implicit conversions, which Rust doesn't have the\nmeans to do. For that reason, the following example will not compile.\n\n```compile_fail,E0277\ntrait TraitExample {}\n\nimpl<'a> TraitExample for &'a str {}\n\nfn example_func<A: TraitExample>(example_arg: A) {}\n\nlet example_string = String::from(\"example_string\");\nexample_func(&example_string);\n\nThere are two options that would work instead. The first would be to\nchange the line `example_func(&example_string);` to\n`example_func(example_string.as_str());`, using the method [`as_str()`]\nto explicitly extract the string slice containing the string. The second\nway changes `example_func(&example_string);` to\n`example_func(&*example_string);`. In this case we are dereferencing a\n`String` to a [`str`], then referencing the [`str`] back to\n[`&str`]. The second way is more idiomatic, however both work to do the\nconversion explicitly rather than relying on the implicit conversion.\n\n# Representation\n\nA `String` is made up of three components: a pointer to some bytes, a\nlength, and a capacity. The pointer points to the internal buffer which `String`\nuses to store its data. The length is the number of bytes currently stored\nin the buffer, and the capacity is the size of the buffer in bytes. As such,\nthe length will always be less than or equal to the capacity.\n\nThis buffer is always stored on the heap.\n\nYou can look at these with the [`as_ptr`], [`len`], and [`capacity`]\nmethods:\n\nuse std::mem;\n\nlet story = String::from(\"Once upon a time...\");\n\n// Prevent automatically dropping the String's data\nlet mut story = mem::ManuallyDrop::new(story);\n\nlet ptr = story.as_mut_ptr();\nlet len = story.len();\nlet capacity = story.capacity();\n\n// story has nineteen bytes\nassert_eq!(19, len);\n\n// We can re-build a String out of ptr, len, and capacity. This is all\n// unsafe because we are responsible for making sure the components are\n// valid:\nlet s = unsafe { String::from_raw_parts(ptr, len, capacity) } ;\n\nassert_eq!(String::from(\"Once upon a time...\"), s);\n\nIf a `String` has enough capacity, adding elements to it will not\nre-allocate. For example, consider this program:\n\nlet mut s = String::new();\n\nprintln!(\"{}\", s.capacity());\n\nfor _ in 0..5 {\n    s.push_str(\"hello\");\n    println!(\"{}\", s.capacity());\n}\n\nThis will output the following:\n\n```text\n0\n8\n16\n16\n32\n32\n\nAt first, we have no memory allocated at all, but as we append to the\nstring, it increases its capacity appropriately. If we instead use the\n[`with_capacity`] method to allocate the correct capacity initially:\n\nlet mut s = String::with_capacity(25);\n\nprintln!(\"{}\", s.capacity());\n\nfor _ in 0..5 {\n    s.push_str(\"hello\");\n    println!(\"{}\", s.capacity());\n}\n\nWe end up with a different output:\n\n```text\n25\n25\n25\n25\n25\n25\n\nHere, there's no need to allocate more memory inside the loop.",
+              "start": 48,
+              "length": 6,
+              "line": 1,
+              "character": 29
             },
             {
               "targetString": "value",
@@ -1371,6 +1381,14 @@ pub fn example() {
               "length": 3,
               "line": 1,
               "character": 8
+            },
+            {
+              "targetString": "new",
+              "text": "alloc::string::String\n\npub const fn new() -> String\n\n---\n\nCreates a new empty `String`.\n\nGiven that the `String` is empty, this will not allocate any initial\nbuffer. While that means that this initial operation is very\ninexpensive, it may cause excessive allocation later when you add\ndata. If you have an idea of how much data the `String` will hold,\nconsider the [`with_capacity`] method to prevent excessive\nre-allocation.\n\n# Examples\n\nlet s = String::new();",
+              "start": 56,
+              "length": 3,
+              "line": 1,
+              "character": 37
             }
           ],
           "queries": [
@@ -1384,7 +1402,18 @@ pub fn example() {
             }
           ],
           "tags": [],
-          "errors": [],
+          "errors": [
+            {
+              "renderedMessage": "unused variable",
+              "id": "unused_variables",
+              "category": "Warning",
+              "code": 0,
+              "start": 27,
+              "length": 3,
+              "line": 1,
+              "character": 8
+            }
+          ],
           "playgroundURL": "https://play.rust-lang.org"
         }
         "#);
