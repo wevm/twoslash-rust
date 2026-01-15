@@ -109,7 +109,8 @@ foo {
         .trim();
         let result = find_queries(src);
 
-        let pretty_queries: Vec<_> = result.queries
+        let pretty_queries: Vec<_> = result
+            .queries
             .into_iter()
             .map(|(q, pos)| {
                 let pos = u32::from(pos) as usize;

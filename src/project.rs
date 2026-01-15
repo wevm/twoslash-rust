@@ -3,9 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-
 use anyhow::Result;
 
+use camino::Utf8PathBuf;
 use load_cargo::{load_workspace, LoadCargoConfig, ProcMacroServerChoice};
 use ra_ide::{
     Analysis, AnalysisHost, AssistResolveStrategy, CompletionConfig, CompletionFieldsToResolve,
@@ -16,13 +16,10 @@ use ra_ide_db::imports::insert_use::{ImportGranularity, InsertUseConfig, PrefixK
 use ra_ide_db::{ChangeWithProcMacros, SnippetCap};
 use ra_project_model::{CargoConfig, ProjectManifest, ProjectWorkspace};
 use ra_vfs::{AbsPathBuf, VfsPath};
-use camino::Utf8PathBuf;
 use tempfile::TempDir;
 
 use crate::query_parser::find_queries;
-use crate::twoslash::{
-    CompletionEntry, Error, Query, QueryKind, StaticQuickInfo, TwoSlash,
-};
+use crate::twoslash::{CompletionEntry, Error, Query, QueryKind, StaticQuickInfo, TwoSlash};
 
 #[derive(Clone)]
 pub struct ProjectSettings<'a> {
@@ -195,7 +192,9 @@ impl Project {
         let _si = StaticIndex::compute(&analysis, VendoredLibrariesConfig::Excluded);
 
         let (fid, _) = vfs
-            .file_id(&VfsPath::new_real_path(bootstrap.lib_rs.display().to_string()))
+            .file_id(&VfsPath::new_real_path(
+                bootstrap.lib_rs.display().to_string(),
+            ))
             .unwrap();
         let analysis = host.analysis();
 
@@ -382,7 +381,7 @@ impl Project {
                 }
             })
             .collect();
-        
+
         // Sort by range length (smallest first) to get the most specific token
         candidates.sort_by_key(|(range, _)| range.len());
         candidates.into_iter().next()
@@ -453,7 +452,9 @@ impl Project {
             file_id: self.fid,
             offset: pos,
         };
-        let completions = self.analysis.completions(&completions_config, file_pos, None)?;
+        let completions = self
+            .analysis
+            .completions(&completions_config, file_pos, None)?;
         let zero_err = Err(anyhow::Error::msg(""));
         let completions = match completions {
             None => return zero_err,
