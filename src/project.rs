@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -18,13 +19,18 @@ use ra_vfs::{AbsPathBuf, VfsPath};
 use tempfile::TempDir;
 
 use crate::query_parser::find_queries;
-use crate::twoslash::{CompletionEntry, Error, Query, QueryKind, StaticQuickInfo, TwoSlash};
+use crate::twoslash::{
+    CompletionEntry, DiagnosticCategory, Error, Query, QueryKind, StaticQuickInfo, TwoSlash,
+};
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct ProjectSettings<'a> {
-    pub make_cargo_project: bool,
     pub project_name: &'a str,
     pub tmpdir: &'a TempDir,
+    /// Optional Cargo.toml content to use as template
+    pub cargo_toml: Option<&'a str>,
+    /// Optional shared target directory for caching compiled deps
+    pub target_dir: Option<&'a str>,
 }
 
 struct Position {
@@ -46,15 +52,63 @@ pub struct Project {
     token_data: Vec<(TokenId, TokenStaticData)>,
 
     fid: FileId,
+
+    build_errors: Vec<String>,
+}
+
+/// Extract a clean error message from cargo output
+fn extract_cargo_error(err: &str) -> String {
+    // Look for common cargo error patterns
+    let patterns = [
+        "no matching package",
+        "could not find",
+        "failed to parse manifest",
+        "error:",
+        "Error:",
+    ];
+
+    for pattern in patterns {
+        if let Some(line) = err.lines().find(|l| l.contains(pattern)) {
+            return line.trim().to_string();
+        }
+    }
+
+    // Fallback: return first non-empty line or the whole thing
+    err.lines()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or(err)
+        .trim()
+        .to_string()
+}
+
+/// Result of bootstrapping a cargo project
+struct BootstrapResult {
+    root: PathBuf,
+    lib_rs: PathBuf,
+    build_errors: Vec<String>,
+}
+
+/// Generate default Cargo.toml content
+fn default_cargo_toml(project_name: &str) -> String {
+    format!(
+        r#"[package]
+edition = "2021"
+name = "{}"
+version = "0.0.0"
+"#,
+        project_name,
+    )
 }
 
 /// Bootstraps a cargo project in a directory, and returns the paths of the
-/// project root and lib.rs.
+/// project root and lib.rs along with any build errors.
 fn bootstrap_project_in(
     dir: &TempDir,
     project_name: &str,
     source: &str,
-) -> Result<(PathBuf, PathBuf)> {
+    cargo_toml_template: Option<&str>,
+    target_dir: Option<&str>,
+) -> Result<BootstrapResult> {
     let root = dir.path();
     let lib_rs = root.join("src/lib.rs");
 
@@ -62,26 +116,46 @@ fn bootstrap_project_in(
     // |- Cargo.toml
     // |- src
     //    |- lib.rs
-    let cargo_toml = root.join("Cargo.toml");
-    fs::write(
-        cargo_toml,
-        format!(
-            r#"
-[package]
-edition = "2021"
-name = "{}"
-version = "0.0.0"
-"#,
-            project_name,
-        )
-        .trim(),
-    )?;
+    let cargo_toml_path = root.join("Cargo.toml");
 
+    let cargo_content = match cargo_toml_template {
+        Some(template) => template.to_string(),
+        None => default_cargo_toml(project_name),
+    };
+
+    fs::write(cargo_toml_path, cargo_content.trim())?;
     fs::create_dir(root.join("src"))?;
-
     fs::write(lib_rs.clone(), source)?;
 
-    Ok((root.to_path_buf(), lib_rs))
+    let mut build_errors = Vec::new();
+
+    // Always run cargo check to fetch deps and set up sysroot for rust-analyzer
+    let mut cmd = Command::new("cargo");
+    cmd.args(["check"]).current_dir(root);
+
+    // Use shared target directory if provided (caches compiled deps across runs)
+    if let Some(target) = target_dir {
+        fs::create_dir_all(target)?;
+        cmd.arg("--target-dir").arg(target);
+    }
+
+    let output = cmd.output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // Parse cargo errors - extract error lines
+        for line in stderr.lines() {
+            if line.starts_with("error") || line.contains("error:") || line.contains("error[") {
+                build_errors.push(line.to_string());
+            }
+        }
+    }
+
+    Ok(BootstrapResult {
+        root: root.to_path_buf(),
+        lib_rs,
+        build_errors,
+    })
 }
 
 fn pre_index(
@@ -124,49 +198,69 @@ impl Project {
         )
     }
 
-    /// Let `scaffold`, but injects user code immediately.
+    /// Like `scaffold`, but injects user code immediately.
     pub fn scaffold_with_code<'a>(settings: ProjectSettings, source: &'a str) -> Result<Project> {
         let (source, queries) = find_queries(source);
 
-        let (host, analysis, fid) = if !settings.make_cargo_project {
-            let (analysis, fid) = Analysis::from_single_file(source.to_string());
-            (None, analysis, fid)
-        } else {
-            let (root, lib_rs) =
-                bootstrap_project_in(settings.tmpdir, settings.project_name, &source)?;
+        // Always use cargo mode - it's needed for std resolution and external deps
+        let bootstrap = bootstrap_project_in(
+            settings.tmpdir,
+            settings.project_name,
+            &source,
+            settings.cargo_toml,
+            settings.target_dir,
+        )?;
 
-            let cargo_config = CargoConfig::default();
-            let no_progress = &|_| ();
-            let load_cargo_config = LoadCargoConfig {
-                load_out_dirs_from_check: true,
-                with_proc_macro: false,
-                prefill_caches: false,
-            };
-            let path = AbsPathBuf::assert(root);
-            let manifest = ProjectManifest::discover_single(&path)?;
-
-            let workspace = ProjectWorkspace::load(manifest, &cargo_config, no_progress)?;
-
-            let (host, vfs, _proc_macro) = load_workspace(workspace, &load_cargo_config)?;
-
-            let analysis = host.analysis();
-
-            let _si = StaticIndex::compute(&analysis);
-
-            let fid = vfs
-                .file_id(&VfsPath::new_real_path(lib_rs.display().to_string()))
-                .unwrap();
-            let analysis = host.analysis();
-
-            (Some(host), analysis, fid)
+        let cargo_config = CargoConfig::default();
+        let no_progress = &|_| ();
+        let load_cargo_config = LoadCargoConfig {
+            load_out_dirs_from_check: true,
+            with_proc_macro: false,
+            prefill_caches: false,
         };
+        let path = AbsPathBuf::assert(bootstrap.root);
+
+        // Try to load the workspace, but if it fails (e.g., invalid deps), return a project with just the error
+        let manifest = match ProjectManifest::discover_single(&path) {
+            Ok(m) => m,
+            Err(e) => {
+                let err_msg = format!("{:?}", e); // Use debug format to get full chain
+                let clean_msg = extract_cargo_error(&err_msg);
+                return Ok(Self::with_error(&source, queries, clean_msg));
+            }
+        };
+
+        let workspace = match ProjectWorkspace::load(manifest, &cargo_config, no_progress) {
+            Ok(w) => w,
+            Err(e) => {
+                let err_msg = format!("{:?}", e); // Use debug format to get full chain
+                let clean_msg = extract_cargo_error(&err_msg);
+                return Ok(Self::with_error(&source, queries, clean_msg));
+            }
+        };
+
+        let (host, vfs, _proc_macro) = match load_workspace(workspace, &load_cargo_config) {
+            Ok(result) => result,
+            Err(e) => {
+                return Ok(Self::with_error(&source, queries, format!("Failed to load workspace: {}", e)));
+            }
+        };
+
+        let analysis = host.analysis();
+
+        let _si = StaticIndex::compute(&analysis);
+
+        let fid = vfs
+            .file_id(&VfsPath::new_real_path(bootstrap.lib_rs.display().to_string()))
+            .unwrap();
+        let analysis = host.analysis();
 
         let (token_to_ranges, token_data, line_index, cut) = pre_index(&analysis, fid, &source);
 
         Ok(Project {
             cut,
 
-            host,
+            host: Some(host),
             analysis,
             queries,
 
@@ -175,7 +269,28 @@ impl Project {
             token_data,
 
             fid,
+
+            build_errors: bootstrap.build_errors,
         })
+    }
+
+    /// Create a minimal project that only contains an error message
+    fn with_error(source: &str, queries: Vec<(QueryKind, TextSize)>, error: String) -> Project {
+        let (analysis, fid) = Analysis::from_single_file(source.to_string());
+        let line_index = LineIndex::new(source);
+        let cut = Cut::new(source, &line_index);
+
+        Project {
+            cut,
+            host: None,
+            analysis,
+            queries,
+            line_index,
+            token_to_ranges: HashMap::new(),
+            token_data: Vec::new(),
+            fid,
+            build_errors: vec![error],
+        }
     }
 
     pub fn apply_change(self, new_code: String) -> Self {
@@ -446,9 +561,23 @@ impl Project {
     }
 
     pub fn twoslasher(&self) -> Result<TwoSlash> {
-        let errors = self.diagnostics()?;
+        let mut errors = self.diagnostics()?;
         let static_quick_infos = self.ident_hovers()?;
         let queries = self.queries();
+
+        // Add cargo build errors at the top of the file
+        for (i, build_error) in self.build_errors.iter().enumerate() {
+            errors.push(Error {
+                rendered_message: build_error.clone(),
+                id: format!("cargo-build-{}", i),
+                category: DiagnosticCategory::Error,
+                code: 0,
+                start: 0,
+                length: 0,
+                line: 0,
+                character: 0,
+            });
+        }
 
         let two_slash_result = TwoSlash {
             code: self.cut.source.to_string(),
