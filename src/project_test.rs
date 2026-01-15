@@ -273,4 +273,42 @@ pub fn example() {
         assert!(names.contains(&"increment"), "Expected 'increment' in completions, got: {:?}", names);
         assert!(names.contains(&"value"), "Expected 'value' (field) in completions, got: {:?}", names);
     }
+
+    #[test]
+    fn test_cut_removes_imports_but_keeps_types() {
+        let tmpdir = TempDir::new().unwrap();
+        let source = r#"
+pub struct Config {
+    pub name: String,
+    pub value: i32,
+}
+// ---cut---
+pub fn example() {
+    let cfg = Config { name: String::new(), value: 42 };
+    //  ^?
+}
+"#
+        .trim();
+
+        let settings = ProjectSettings {
+            project_name: "test-project",
+            tmpdir: &tmpdir,
+            cargo_toml: None,
+            target_dir: None,
+        };
+
+        let project = Project::scaffold_with_code(settings, source).unwrap();
+        let result = project.twoslasher().unwrap();
+
+        // The output code should NOT contain the struct definition (it's cut)
+        assert!(!result.code.contains("pub struct Config"), 
+            "Expected struct definition to be cut from output, got: {}", result.code);
+        
+        // But we should still get type information for Config
+        assert_eq!(result.queries.len(), 1);
+        let query = &result.queries[0];
+        assert!(query.text.is_some(), "Expected hover text");
+        let text = query.text.as_ref().unwrap();
+        assert!(text.contains("Config"), "Expected hover to contain 'Config', got: {}", text);
+    }
 }
