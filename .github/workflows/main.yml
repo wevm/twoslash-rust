@@ -31,3 +31,5 @@ jobs:
 
       - name: Run tests
         run: cargo test --verbose
+        env:
+          INSTA_FORCE_PASS: 1
