@@ -13,7 +13,7 @@ use ra_ide::{
     StaticIndex, TextRange, TextSize, TokenId, TokenStaticData, VendoredLibrariesConfig,
 };
 use ra_ide_db::imports::insert_use::{ImportGranularity, InsertUseConfig, PrefixKind};
-use ra_ide_db::{ChangeWithProcMacros, SnippetCap};
+use ra_ide_db::{ChangeWithProcMacros, MiniCore, SnippetCap};
 use ra_project_model::{CargoConfig, ProjectManifest, ProjectWorkspace, RustLibSource};
 use ra_vfs::{AbsPathBuf, VfsPath};
 use tempfile::TempDir;
@@ -445,6 +445,7 @@ impl Project {
             fields_to_resolve: CompletionFieldsToResolve::empty(),
             exclude_flyimport: Vec::new(),
             exclude_traits: &[],
+            minicore: MiniCore::default(),
         };
         let file_pos = FilePosition {
             file_id: self.fid,
